@@ -16,10 +16,10 @@ git checkout ddd
 
 **Isi:**
 - Arsitektur Domain-Driven Design
-- Aggregate pattern
-- Repository pattern
-- Value Objects
-- Domain Events
+- Repository pattern (interface di Domain)
+- Service + Repository + Adapter
+- Domain model sebagai center
+- Adapter untuk external system
 
 ---
 
@@ -33,8 +33,9 @@ git checkout hexagonal
 
 **Isi:**
 - Hexagonal Architecture (Netflix style)
+- Port pattern (interface di Application)
 - Ports & Adapters pattern
-- Pemisahan concern yang jelas
+- Pemisahan concern yang lebih strict
 - Mapping DTO ↔ Domain di adapter
 - Reactive programming dengan WebFlux
 - BlockHound untuk validasi non-blocking
@@ -55,11 +56,18 @@ git checkout hexagonal
 
 | Aspek | DDD | Hexagonal |
 |-------|-----|-----------|
-| Fokus | Domain model | Port boundaries |
-| Struktur | Aggregates | Ports & Adapters |
-| Dependencies | Domain → Infrastructure | Infrastructure → Application → Domain |
-| Mapping | Service layer | Adapter layer |
-| Cocok untuk | Business logic kompleks | Sistem fleksibel & testable |
+| Interface contract | Repository (di Domain) | Port (di Application) |
+| Fokus | Domain model sebagai center | Application boundary yang jelas |
+| Struktur | Domain → Repository → Adapter | Domain → Port → Adapter |
+| Service dependency | Inject Repository | Inject Port |
+| Mapping | Service atau Adapter | Adapter only |
+| Cocok untuk | Domain-centric apps | Flexible, swappable systems |
+
+**Kesamaan:**
+- Sama-sama pakai Adapter di Infrastructure layer
+- Sama-sama pisahkan domain dari technical details
+- Sama-sama support reactive programming
+- Sama-sama testable dengan mock
 
 ---
 
