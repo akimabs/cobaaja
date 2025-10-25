@@ -1,21 +1,21 @@
-# Spring Boot Architecture Examples
+# Contoh Implementasi Arsitektur Spring Boot
 
-This repository contains different architectural implementations of the same application using Spring Boot and WebFlux.
+Repository ini berisi implementasi berbagai arsitektur dari aplikasi yang sama menggunakan Spring Boot dan WebFlux.
 
 ---
 
-## Available Branches
+## Branch yang Tersedia
 
 ### 1. **Branch: `ddd`**
-Domain-Driven Design implementation
+Implementasi Domain-Driven Design
 
-**Switch to this branch:**
+**Pindah ke branch ini:**
 ```bash
 git checkout ddd
 ```
 
-**What's inside:**
-- Domain-Driven Design architecture
+**Isi:**
+- Arsitektur Domain-Driven Design
 - Aggregate pattern
 - Repository pattern
 - Value Objects
@@ -23,71 +23,70 @@ git checkout ddd
 
 ---
 
-### 2. **Branch: `hexagonal`** (Recommended)
-Pure Hexagonal Architecture (Ports & Adapters)
+### 2. **Branch: `hexagonal`** (Disarankan)
+Arsitektur Hexagonal Murni (Ports & Adapters)
 
-**Switch to this branch:**
+**Pindah ke branch ini:**
 ```bash
 git checkout hexagonal
 ```
 
-**What's inside:**
+**Isi:**
 - Hexagonal Architecture (Netflix style)
 - Ports & Adapters pattern
-- Clean separation of concerns
-- DTO ↔ Domain mapping in adapters
-- Reactive programming with WebFlux
-- BlockHound for non-blocking validation
-- Comprehensive documentation
+- Pemisahan concern yang jelas
+- Mapping DTO ↔ Domain di adapter
+- Reactive programming dengan WebFlux
+- BlockHound untuk validasi non-blocking
+- Dokumentasi lengkap
 
-**Documentation:**
-- PURE_HEXAGONAL_ARCHITECTURE.md - Core concepts
-- HEXAGONAL_MAPPING_GUIDE.md - Mapping patterns
+**Dokumentasi:**
+- PURE_HEXAGONAL_ARCHITECTURE.md - Konsep dasar
+- HEXAGONAL_MAPPING_GUIDE.md - Pattern mapping
 - COMPOSITE_ADAPTER_GUIDE.md - Multiple providers
 - DI_INJECTION_GUIDE.md - Dependency injection
 - TDD_HEXAGONAL_WORKFLOW.md - Test-driven development
 - REACTIVE_GUIDE.md - Reactive programming
-- BLOCKHOUND_GUIDE.md - Non-blocking validation
+- BLOCKHOUND_GUIDE.md - Validasi non-blocking
 
 ---
 
-## Quick Comparison
+## Perbandingan
 
-| Aspect | DDD | Hexagonal |
-|--------|-----|-----------|
-| Focus | Domain model | Port boundaries |
-| Structure | Aggregates | Ports & Adapters |
+| Aspek | DDD | Hexagonal |
+|-------|-----|-----------|
+| Fokus | Domain model | Port boundaries |
+| Struktur | Aggregates | Ports & Adapters |
 | Dependencies | Domain → Infrastructure | Infrastructure → Application → Domain |
 | Mapping | Service layer | Adapter layer |
-| Best for | Complex business logic | Flexible, testable systems |
+| Cocok untuk | Business logic kompleks | Sistem fleksibel & testable |
 
 ---
 
-## Getting Started
+## Cara Mulai
 
-1. Choose your preferred architecture:
-   - `git checkout ddd` - For DDD approach
-   - `git checkout hexagonal` - For Hexagonal approach
+1. Pilih arsitektur yang diinginkan:
+   - `git checkout ddd` - Untuk pendekatan DDD
+   - `git checkout hexagonal` - Untuk pendekatan Hexagonal
 
-2. Read the README in that branch for detailed instructions
+2. Baca README di branch tersebut untuk instruksi detail
 
-3. Run the application:
+3. Jalankan aplikasi:
    ```bash
    mvn spring-boot:run
    ```
 
 ---
 
-## Project Goal
+## Tujuan Project
 
-Learn and compare different architectural patterns by implementing the same application:
+Belajar dan membandingkan berbagai pattern arsitektur dengan implementasi aplikasi yang sama:
 - User management
 - Post management
-- External API integration
+- Integrasi external API
 - Reactive programming
 - Clean code principles
 
 ---
 
-**Choose a branch above to get started!**
-
+**Pilih branch di atas untuk memulai!**
