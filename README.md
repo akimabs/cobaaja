@@ -1,100 +1,67 @@
-# Contoh Implementasi Arsitektur Spring Boot
+# Spring Boot Architecture Examples
 
-Repository ini berisi implementasi berbagai arsitektur dari aplikasi yang sama menggunakan Spring Boot dan WebFlux.
+Repository ini berisi implementasi berbagai arsitektur dari aplikasi yang sama.
 
 ---
 
 ## Branch yang Tersedia
 
-### 1. **Branch: `ddd`**
-Implementasi Domain-Driven Design
+### Branch: `ddd`
+Domain-Driven Design dengan Repository pattern
 
-**Pindah ke branch ini:**
 ```bash
 git checkout ddd
 ```
 
-**Isi:**
-- Arsitektur Domain-Driven Design
-- Repository pattern (interface di Domain)
-- Service + Repository + Adapter
+**Karakteristik:**
+- Repository interface di Domain layer
+- Service inject Repository
 - Domain model sebagai center
 - Adapter untuk external system
 
 ---
 
-### 2. **Branch: `hexagonal`** (Disarankan)
-Arsitektur Hexagonal Murni (Ports & Adapters)
+### Branch: `hexagonal`
+Hexagonal Architecture dengan Ports & Adapters
 
-**Pindah ke branch ini:**
 ```bash
 git checkout hexagonal
 ```
 
-**Isi:**
-- Hexagonal Architecture (Netflix style)
-- Port pattern (interface di Application)
-- Ports & Adapters pattern
-- Pemisahan concern yang lebih strict
-- Mapping DTO ↔ Domain di adapter
-- Reactive programming dengan WebFlux
-- BlockHound untuk validasi non-blocking
+**Karakteristik:**
+- Port interface di Application layer
+- Service inject Port
+- Application boundary yang jelas
+- Adapter untuk external system
 - Dokumentasi lengkap
 
-**Dokumentasi:**
-- PURE_HEXAGONAL_ARCHITECTURE.md - Konsep dasar
-- HEXAGONAL_MAPPING_GUIDE.md - Pattern mapping
-- COMPOSITE_ADAPTER_GUIDE.md - Multiple providers
-- DI_INJECTION_GUIDE.md - Dependency injection
-- TDD_HEXAGONAL_WORKFLOW.md - Test-driven development
-- REACTIVE_GUIDE.md - Reactive programming
-- BLOCKHOUND_GUIDE.md - Validasi non-blocking
+---
+
+## Perbedaan Utama
+
+| DDD | Hexagonal |
+|-----|-----------|
+| Repository (di Domain) | Port (di Application) |
+| Domain-centric | Boundary-centric |
+
+**Kesamaan:** Sama-sama pakai Adapter di Infrastructure layer
 
 ---
 
-## Perbandingan
+## Quick Start
 
-| Aspek | DDD | Hexagonal |
-|-------|-----|-----------|
-| Interface contract | Repository (di Domain) | Port (di Application) |
-| Fokus | Domain model sebagai center | Application boundary yang jelas |
-| Struktur | Domain → Repository → Adapter | Domain → Port → Adapter |
-| Service dependency | Inject Repository | Inject Port |
-| Mapping | Service atau Adapter | Adapter only |
-| Cocok untuk | Domain-centric apps | Flexible, swappable systems |
+```bash
+# Pilih branch
+git checkout ddd        # atau
+git checkout hexagonal
 
-**Kesamaan:**
-- Sama-sama pakai Adapter di Infrastructure layer
-- Sama-sama pisahkan domain dari technical details
-- Sama-sama support reactive programming
-- Sama-sama testable dengan mock
+# Jalankan
+mvn spring-boot:run
+
+# Test
+curl http://localhost:8080/api/users/1
+```
 
 ---
 
-## Cara Mulai
-
-1. Pilih arsitektur yang diinginkan:
-   - `git checkout ddd` - Untuk pendekatan DDD
-   - `git checkout hexagonal` - Untuk pendekatan Hexagonal
-
-2. Baca README di branch tersebut untuk instruksi detail
-
-3. Jalankan aplikasi:
-   ```bash
-   mvn spring-boot:run
-   ```
-
----
-
-## Tujuan Project
-
-Belajar dan membandingkan berbagai pattern arsitektur dengan implementasi aplikasi yang sama:
-- User management
-- Post management
-- Integrasi external API
-- Reactive programming
-- Clean code principles
-
----
-
-**Pilih branch di atas untuk memulai!**
+Pilih branch di atas untuk lihat implementasi lengkap!
