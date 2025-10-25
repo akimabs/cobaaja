@@ -1,7 +1,8 @@
 package com.loginservice.app.application.service;
 
+import com.loginservice.app.application.port.in.GetPostUseCase;
+import com.loginservice.app.application.port.out.LoadPostPort;
 import com.loginservice.app.domain.entity.Post;
-import com.loginservice.app.domain.repository.PostRepository;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import java.util.List;
@@ -9,22 +10,27 @@ import java.util.List;
 /**
  * Post Service (Application Layer)
  * 
+ * Pure Hexagonal Architecture:
+ * - IMPLEMENTS Input Port (GetPostUseCase) - what app offers
+ * - USES Output Port (LoadPostPort) - what app needs
+ * 
  * Responsibility:
- * 1. Business logic
+ * 1. Business logic & validation
  * 2. Orchestrate domain operations
- * 3. Call repository (interface only!)
+ * 3. Bridge between Input Port and Output Port
  * 
  * ❌ TIDAK TAHU tentang Redis, Minio, API, atau infrastructure!
- * ✅ HANYA TAHU tentang PostRepository interface
+ * ✅ HANYA TAHU tentang Ports (interfaces)
  */
 @Service
-public class PostService {
+public class PostService implements GetPostUseCase {
     
-    private final PostRepository postRepository;
+    private final LoadPostPort loadPostPort;
 
     // ✅ Constructor injection (best practice)
-    public PostService(PostRepository postRepository) {
-        this.postRepository = postRepository;
+    // Inject OUTPUT PORT (not concrete adapter)
+    public PostService(LoadPostPort loadPostPort) {
+        this.loadPostPort = loadPostPort;
     }
 
     /**
@@ -34,11 +40,12 @@ public class PostService {
      * - Post must be valid
      * - Return error if not found or invalid
      * 
-     * Note: Service tidak tahu bahwa repository adalah composite adapter
-     * yang orchestrate Redis → Minio → API. Service cuma tahu interface!
+     * Note: Service tidak tahu adapter mana yang dipanggil
+     * Service hanya tahu LoadPostPort interface!
      */
+    @Override
     public Mono<Post> getPost(Long id) {
-        return postRepository.findById(id)        // Call repository (injected adapter)
+        return loadPostPort.loadById(id)        // Call output port (injected adapter)
             .filter(Post::isValid)
             .switchIfEmpty(
                 Mono.error(new RuntimeException("Post not found or invalid: " + id))
@@ -48,10 +55,11 @@ public class PostService {
     /**
      * Get all posts
      * 
-     * Returns raw list from repository
+     * Returns list from output port
      * Controller will convert to DTO
      */
+    @Override
     public Mono<List<Post>> getAllPosts() {
-        return postRepository.findAll();
+        return loadPostPort.loadAll();
     }
 }

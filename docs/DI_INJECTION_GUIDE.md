@@ -1,5 +1,7 @@
 # Dependency Injection Guide: Composite Adapter Pattern
 
+> 📖 **Prerequisites:** Read [COMPOSITE_ADAPTER_GUIDE.md](COMPOSITE_ADAPTER_GUIDE.md) first for the pattern overview.
+
 ## 🎯 **Masalah:** Gimana cara panggil Redis dan Minio?
 
 **Jawaban:** Pake **Spring Dependency Injection** dengan **@Qualifier**!
@@ -11,12 +13,12 @@
 ### Step 1: Buat Individual Adapters dengan @Qualifier
 
 ```java
-// 1️⃣ Redis Adapter
+// 1️⃣ Redis Adapter (Secondary Adapter)
 @Component
 @Qualifier("redis")  // ← ID: "redis"
-public class PostRedisAdapter implements PostRepository {
+public class PostRedisAdapter implements LoadPostPort {
     
-    public Mono<Post> findById(Long id) {
+    public Mono<Post> loadById(Long id) {
         // Redis logic
     }
     
@@ -27,12 +29,12 @@ public class PostRedisAdapter implements PostRepository {
 ```
 
 ```java
-// 2️⃣ Minio Adapter
+// 2️⃣ Minio Adapter (Secondary Adapter)
 @Component
 @Qualifier("minio")  // ← ID: "minio"
-public class PostMinioAdapter implements PostRepository {
+public class PostMinioAdapter implements LoadPostPort {
     
-    public Mono<Post> findById(Long id) {
+    public Mono<Post> loadById(Long id) {
         // Minio logic
     }
     
@@ -49,7 +51,7 @@ public class PostMinioAdapter implements PostRepository {
 ```java
 @Component
 @Primary  // ← Ini yang dipake default
-public class PostCachedStorageAdapter implements PostRepository {
+public class PostCachedStorageAdapter implements LoadPostPort {
     
     // ✅ Declare dependencies
     private final PostRedisAdapter redisAdapter;
@@ -66,10 +68,10 @@ public class PostCachedStorageAdapter implements PostRepository {
     
     // ✅ Sekarang bisa manggil Redis & Minio!
     @Override
-    public Mono<Post> findById(Long id) {
-        return redisAdapter.findById(id)           // 1. Cek Redis dulu
+    public Mono<Post> loadById(Long id) {
+        return redisAdapter.loadById(id)           // 1. Cek Redis dulu
             .switchIfEmpty(
-                minioAdapter.findById(id)          // 2. Kalo ga ada, ambil dari Minio
+                minioAdapter.loadById(id)          // 2. Kalo ga ada, ambil dari Minio
                     .flatMap(post -> 
                         redisAdapter.save(post)     // 3. Cache ke Redis
                             .thenReturn(post)
@@ -81,32 +83,38 @@ public class PostCachedStorageAdapter implements PostRepository {
 
 ---
 
-### Step 3: Service cuma inject PostRepository
+### Step 3: Service cuma inject LoadPostPort
 
 ```java
 @Service
-public class PostService {
+public class PostService implements GetPostUseCase {
     
-    private final PostRepository repository;  // ✅ Inject interface aja
+    private final LoadPostPort loadPostPort;  // ✅ Inject Output Port (interface)
     
     // Spring auto-inject PostCachedStorageAdapter karena @Primary
-    public PostService(PostRepository repository) {
-        this.repository = repository;
+    public PostService(LoadPostPort loadPostPort) {
+        this.loadPostPort = loadPostPort;
     }
     
+    @Override
     public Mono<Post> getPost(Long id) {
-        return repository.findById(id);  // Otomatis pake composite adapter!
+        return loadPostPort.loadById(id);  // Otomatis pake composite adapter!
     }
 }
 ```
+
+> 💡 **Port-based architecture:**
+> - Service implements Input Port (GetPostUseCase)
+> - Service uses Output Port (LoadPostPort)
+> - Spring injects the adapter that implements Output Port
 
 ---
 
 ## 🔍 **Spring Bean Resolution Flow**
 
 ```
-1. Service minta: PostRepository
-   └─> Spring cari bean yang implements PostRepository
+1. Service minta: LoadPostPort
+   └─> Spring cari bean yang implements LoadPostPort
        ├─ PostRedisAdapter     (@Qualifier("redis"))
        ├─ PostMinioAdapter     (@Qualifier("minio"))
        └─ PostCachedStorageAdapter (@Primary) ← INI YANG DIPILIH!
@@ -127,25 +135,25 @@ public class PostService {
 ### Tanpa @Qualifier (ERROR!)
 ```java
 @Component
-public class PostRedisAdapter implements PostRepository { }
+public class PostRedisAdapter implements LoadPostPort { }
 
 @Component
-public class PostMinioAdapter implements PostRepository { }
+public class PostMinioAdapter implements LoadPostPort { }
 
 @Component
-public class PostCachedStorageAdapter implements PostRepository {
+public class PostCachedStorageAdapter implements LoadPostPort {
     
-    // ❌ ERROR! Spring bingung, PostRepository ada 3 implementasi!
+    // ❌ ERROR! Spring bingung, LoadPostPort ada 3 implementasi!
     public PostCachedStorageAdapter(
-        PostRepository redis,   // Mana yang dipilih??
-        PostRepository minio    // Mana yang dipilih??
+        LoadPostPort redis,   // Mana yang dipilih??
+        LoadPostPort minio    // Mana yang dipilih??
     ) { }
 }
 ```
 
 **Error:**
 ```
-No qualifying bean of type 'PostRepository' available: 
+No qualifying bean of type 'LoadPostPort' available: 
 expected single matching bean but found 3: 
 postRedisAdapter, postMinioAdapter, postCachedStorageAdapter
 ```
@@ -156,20 +164,20 @@ postRedisAdapter, postMinioAdapter, postCachedStorageAdapter
 ```java
 @Component
 @Qualifier("redis")  // ← Kasih ID
-public class PostRedisAdapter implements PostRepository { }
+public class PostRedisAdapter implements LoadPostPort { }
 
 @Component
 @Qualifier("minio")  // ← Kasih ID
-public class PostMinioAdapter implements PostRepository { }
+public class PostMinioAdapter implements LoadPostPort { }
 
 @Component
 @Primary  // ← Default choice
-public class PostCachedStorageAdapter implements PostRepository {
+public class PostCachedStorageAdapter implements LoadPostPort {
     
     // ✅ Spring tahu mana yang mau di-inject!
     public PostCachedStorageAdapter(
-        @Qualifier("redis") PostRepository redis,   // Pilih yang ID-nya "redis"
-        @Qualifier("minio") PostRepository minio    // Pilih yang ID-nya "minio"
+        @Qualifier("redis") LoadPostPort redis,   // Pilih yang ID-nya "redis"
+        @Qualifier("minio") LoadPostPort minio    // Pilih yang ID-nya "minio"
     ) { }
 }
 ```
@@ -199,7 +207,7 @@ package ...infrastructure.cache.post;
 
 @Component
 @Qualifier("redis")
-public class PostRedisAdapter implements PostRepository {
+public class PostRedisAdapter implements LoadPostPort {
     
     private final RedisTemplate<String, Post> redisTemplate;
     
@@ -207,7 +215,7 @@ public class PostRedisAdapter implements PostRepository {
         this.redisTemplate = redisTemplate;
     }
     
-    public Mono<Post> findById(Long id) {
+    public Mono<Post> loadById(Long id) {
         String key = "post:" + id;
         return Mono.fromCallable(() -> 
             redisTemplate.opsForValue().get(key)
@@ -229,7 +237,7 @@ package ...infrastructure.storage.post;
 
 @Component
 @Qualifier("minio")
-public class PostMinioAdapter implements PostRepository {
+public class PostMinioAdapter implements LoadPostPort {
     
     private final MinioClient minioClient;
     
@@ -237,7 +245,7 @@ public class PostMinioAdapter implements PostRepository {
         this.minioClient = minioClient;
     }
     
-    public Mono<Post> findById(Long id) {
+    public Mono<Post> loadById(Long id) {
         return Mono.fromCallable(() -> {
             InputStream stream = minioClient.getObject(
                 GetObjectArgs.builder()
@@ -270,7 +278,7 @@ package ...infrastructure.composite;
 
 @Component
 @Primary  // ← Default implementation
-public class PostCachedStorageAdapter implements PostRepository {
+public class PostCachedStorageAdapter implements LoadPostPort {
     
     private final PostRedisAdapter redis;
     private final PostMinioAdapter minio;
@@ -285,15 +293,15 @@ public class PostCachedStorageAdapter implements PostRepository {
     }
     
     @Override
-    public Mono<Post> findById(Long id) {
-        return redis.findById(id)                    // Try cache
+    public Mono<Post> loadById(Long id) {
+        return redis.loadById(id)                    // Try cache
             .doOnNext(post -> 
                 log.info("Cache HIT for post {}", id)
             )
             .switchIfEmpty(
                 Mono.defer(() -> {
                     log.info("Cache MISS for post {}", id);
-                    return minio.findById(id)         // Get from storage
+                    return minio.loadById(id)         // Get from storage
                         .flatMap(post -> 
                             redis.save(post)          // Cache it
                                 .thenReturn(post)
@@ -316,17 +324,18 @@ public class PostCachedStorageAdapter implements PostRepository {
 package ...application.service;
 
 @Service
-public class PostService {
+public class PostService implements GetPostUseCase {
     
-    private final PostRepository repository;
+    private final LoadPostPort loadPostPort;
     
     // Spring inject PostCachedStorageAdapter (karena @Primary)
-    public PostService(PostRepository repository) {
-        this.repository = repository;
+    public PostService(LoadPostPort loadPostPort) {
+        this.loadPostPort = loadPostPort;
     }
     
+    @Override
     public Mono<Post> getPost(Long id) {
-        return repository.findById(id);  // Magic happens here!
+        return loadPostPort.loadById(id);  // Magic happens here!
     }
 }
 ```
@@ -343,13 +352,13 @@ public class PostService {
 2. PostService → repository.findById(1)
    │  (repository = PostCachedStorageAdapter karena @Primary)
    │
-3. PostCachedStorageAdapter.findById(1)
+3. PostCachedStorageAdapter.loadById(1)
    │
-4. redis.findById(1)  ← Check Redis cache
+4. redis.loadById(1)  ← Check Redis cache
    │
    ├─ Cache HIT  → Return Post ✅
    │
-   └─ Cache MISS → minio.findById(1)  ← Get from Minio
+   └─ Cache MISS → minio.loadById(1)  ← Get from Minio
                     │
                     ├─ Found → redis.save(post) → Return Post ✅
                     │
@@ -368,21 +377,21 @@ public class AdapterConfig {
     
     @Bean
     @Qualifier("redis")
-    public PostRepository redisAdapter(RedisTemplate<String, Post> redisTemplate) {
+    public LoadPostPort redisAdapter(RedisTemplate<String, Post> redisTemplate) {
         return new PostRedisAdapter(redisTemplate);
     }
     
     @Bean
     @Qualifier("minio")
-    public PostRepository minioAdapter(MinioClient minioClient) {
+    public LoadPostPort minioAdapter(MinioClient minioClient) {
         return new PostMinioAdapter(minioClient);
     }
     
     @Bean
     @Primary
-    public PostRepository compositeAdapter(
-        @Qualifier("redis") PostRepository redis,
-        @Qualifier("minio") PostRepository minio
+    public LoadPostPort compositeAdapter(
+        @Qualifier("redis") LoadPostPort redis,
+        @Qualifier("minio") LoadPostPort minio
     ) {
         return new PostCachedStorageAdapter(
             (PostRedisAdapter) redis,
@@ -391,6 +400,8 @@ public class AdapterConfig {
     }
 }
 ```
+
+> 💡 **See:** [COMPOSITE_ADAPTER_GUIDE.md](COMPOSITE_ADAPTER_GUIDE.md) for composite pattern details.
 
 ---
 
@@ -410,4 +421,12 @@ public class AdapterConfig {
 4. ✅ Spring auto-wire semua!
 
 **Result:** Service ga tahu Redis/Minio, tapi tetep bisa pake! 🎉
+
+---
+
+## 📚 Related Guides
+
+- **[PURE_HEXAGONAL_ARCHITECTURE.md](PURE_HEXAGONAL_ARCHITECTURE.md)** - Main architecture guide
+- **[COMPOSITE_ADAPTER_GUIDE.md](COMPOSITE_ADAPTER_GUIDE.md)** - Composite pattern overview
+- **[HEXAGONAL_MAPPING_GUIDE.md](HEXAGONAL_MAPPING_GUIDE.md)** - Mapping strategy
 

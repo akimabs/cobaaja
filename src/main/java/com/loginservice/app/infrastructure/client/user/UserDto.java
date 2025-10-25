@@ -3,14 +3,6 @@ package com.loginservice.app.infrastructure.client.user;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * DTO - User from external API
- * Infrastructure layer: external API contract
- * 
- * Using Lombok:
- * - @Data = auto getters + setters + equals + hashCode + toString
- * - @NoArgsConstructor = default constructor for Jackson
- */
 @Data
 @NoArgsConstructor
 public class UserDto {
@@ -18,6 +10,33 @@ public class UserDto {
     private String name;
     private String username;
     private String email;
+    private AddressDto address;
     private String phone;
     private String website;
+    private CompanyDto company;
+    
+    @Data
+    @NoArgsConstructor
+    public static class AddressDto {
+        private String street;
+        private String suite;
+        private String city;
+        private String zipcode;
+        private GeoDto geo;
+    }
+    
+    @Data
+    @NoArgsConstructor
+    public static class GeoDto {
+        private String lat;
+        private String lng;
+    }
+    
+    @Data
+    @NoArgsConstructor
+    public static class CompanyDto {
+        private String name;
+        private String catchPhrase;
+        private String bs;
+    }
 }

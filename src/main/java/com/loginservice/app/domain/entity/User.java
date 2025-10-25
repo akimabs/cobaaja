@@ -1,50 +1,33 @@
 package com.loginservice.app.domain.entity;
 
 /**
- * Domain Entity - User
- * Pure business object, no framework dependencies
+ * Domain Entity - Business Model
+ * Struktur sesuai kebutuhan SISTEM KITA, bukan external API
  */
-public class User {
-    
-    private final Long id;
-    private final String name;
-    private final String username;
-    private final String email;
-    private final String phone;
-    private final String website;
-    
-    public User(Long id, String name, String username, String email, String phone, String website) {
-        this.id = id;
-        this.name = name;
-        this.username = username;
-        this.email = email;
-        this.phone = phone;
-        this.website = website;
-    }
-    
-    // Business logic methods
+public record User (
+    Long userId,             // ← Renamed dari id
+    String fullName,         // ← Renamed dari name
+    String username,
+    String email,
+    Location location,       // ← Renamed dari address
+    String phoneNumber,      // ← Renamed dari phone
+    String websiteUrl,       // ← Renamed dari website
+    Organization organization // ← Renamed dari company
+) {
     public boolean isValid() {
-        return id != null && 
-               email != null && 
-               email.contains("@") && 
-               username != null && 
-               !username.trim().isEmpty();
+        return userId != null &&
+            fullName != null &&
+            username != null &&
+            email != null &&
+            phoneNumber != null &&
+            websiteUrl != null;
+        // Note: location and organization can be null (optional fields)
     }
     
-    public boolean hasWebsite() {
-        return website != null && !website.trim().isEmpty();
+    /**
+     * Business method: Get display name
+     */
+    public String getDisplayName() {
+        return fullName + " (@" + username + ")";
     }
-    
-    public boolean hasCompleteProfile() {
-        return isValid() && name != null && phone != null;
-    }
-    
-    // Getters
-    public Long getId() { return id; }
-    public String getName() { return name; }
-    public String getUsername() { return username; }
-    public String getEmail() { return email; }
-    public String getPhone() { return phone; }
-    public String getWebsite() { return website; }
 }
-

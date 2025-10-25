@@ -1,5 +1,8 @@
 # Reactive Programming Guide dengan Spring WebFlux
 
+> 📖 **Context:** This guide explains reactive programming concepts used throughout the hexagonal architecture.  
+> See [PURE_HEXAGONAL_ARCHITECTURE.md](PURE_HEXAGONAL_ARCHITECTURE.md) for how reactive code fits in the architecture.
+
 ## Daftar Isi
 1. [Konsep Dasar](#konsep-dasar)
 2. [Creation Operators](#creation-operators)
@@ -518,6 +521,174 @@ public Mono<Post> getCachedPost(@PathVariable Long id) {
 - Test error scenarios
 - Test backpressure
 
+### 5. **BlockHound - Detect Blocking Calls** 🔍
+
+**BlockHound** adalah Java agent untuk detect blocking calls dalam reactive code.
+
+#### **Why Use BlockHound?**
+- ✅ Detect blocking operations yang accidentally masuk ke reactive pipeline
+- ✅ Throw error immediately saat ada blocking call
+- ✅ Memastikan code benar-benar non-blocking
+
+#### **What BlockHound Detects:**
+```java
+// ❌ BAD: Blocking operations
+Thread.sleep(1000);              // Blocking!
+Object.wait();                   // Blocking!
+FileInputStream.read();          // Blocking I/O!
+synchronized(lock) { ... }       // Blocking!
+jdbcTemplate.query(...);         // Blocking JDBC!
+```
+
+#### **Installation:**
+```xml
+<!-- pom.xml -->
+<dependency>
+    <groupId>io.projectreactor.tools</groupId>
+    <artifactId>blockhound</artifactId>
+    <version>1.0.8.RELEASE</version>
+</dependency>
+```
+
+#### **Configuration:**
+```java
+// config/BlockHoundConfig.java
+@Configuration
+public class BlockHoundConfig {
+    
+    @PostConstruct
+    public void init() {
+        // Only enable in DEV/TEST (not PROD)
+        BlockHound.install(builder -> {
+            // Allow specific blocking calls if needed
+            builder.allowBlockingCallsInside(
+                "com.fasterxml.jackson.databind.ObjectMapper",
+                "readValue"
+            );
+        });
+    }
+}
+```
+
+#### **Example: BlockHound Catches Violation**
+```java
+// ❌ This will THROW BlockingOperationError
+@GetMapping("/bad")
+public Mono<String> badEndpoint() {
+    return Mono.fromCallable(() -> {
+        Thread.sleep(1000);  // 💥 BlockHound throws error!
+        return "result";
+    });
+}
+
+// ✅ Correct: Non-blocking
+@GetMapping("/good")
+public Mono<String> goodEndpoint() {
+    return Mono.delay(Duration.ofSeconds(1))
+        .map(tick -> "result");
+}
+```
+
+#### **Common Mistakes BlockHound Catches:**
+
+**1. Thread.sleep() in Reactive Chain:**
+```java
+// ❌ WRONG
+return Mono.fromCallable(() -> {
+    Thread.sleep(1000);
+    return "data";
+});
+
+// ✅ CORRECT
+return Mono.delay(Duration.ofSeconds(1))
+    .map(tick -> "data");
+```
+
+**2. Blocking I/O:**
+```java
+// ❌ WRONG: FileInputStream is blocking
+return Mono.fromCallable(() -> {
+    FileInputStream fis = new FileInputStream("file.txt");
+    return fis.read();
+});
+
+// ✅ CORRECT: Use reactive file operations
+return DataBufferUtils.read(
+    new FileSystemResource("file.txt"),
+    dataBufferFactory,
+    4096
+);
+```
+
+**3. JDBC in Reactive:**
+```java
+// ❌ WRONG: JDBC is blocking
+return Mono.fromCallable(() -> {
+    return jdbcTemplate.queryForObject("SELECT * FROM users WHERE id = ?", ...);
+});
+
+// ✅ CORRECT: Use R2DBC
+return r2dbcTemplate.queryForObject("SELECT * FROM users WHERE id = ?", ...);
+```
+
+**4. Synchronized Blocks:**
+```java
+// ❌ WRONG: synchronized is blocking
+return Mono.fromCallable(() -> {
+    synchronized(lock) {
+        return sharedResource.getData();
+    }
+});
+
+// ✅ CORRECT: Use reactive locks or atomic operations
+return Mono.fromCallable(() -> 
+    atomicReference.get()
+);
+```
+
+#### **How to Fix Blocking Operations:**
+
+| Blocking | Non-Blocking Alternative |
+|----------|-------------------------|
+| `Thread.sleep()` | `Mono.delay()` |
+| `FileInputStream` | `DataBufferUtils` |
+| `JDBC` | `R2DBC` |
+| `RestTemplate` | `WebClient` |
+| `synchronized` | `AtomicReference`, `Mutex` |
+| `ExecutorService.submit()` | `Schedulers.boundedElastic()` |
+
+#### **When to Offload Blocking Operations:**
+
+Jika **tidak bisa** avoid blocking (legacy code, third-party lib):
+```java
+// Use boundedElastic scheduler
+return Mono.fromCallable(() -> {
+    // Blocking operation here is OK
+    return legacyBlockingService.getData();
+})
+.subscribeOn(Schedulers.boundedElastic());  // ✅ Offload to separate thread pool
+```
+
+#### **BlockHound Best Practices:**
+1. ✅ Enable only in DEV/TEST (not PROD - performance overhead)
+2. ✅ Run tests with BlockHound enabled
+3. ✅ Fix violations immediately
+4. ✅ Document allowed blocking calls with `allowBlockingCallsInside()`
+5. ✅ Use `Schedulers.boundedElastic()` for unavoidable blocking
+
+#### **Environment Setup:**
+```properties
+# application-dev.properties
+spring.profiles.active=dev
+# BlockHound will be enabled
+
+# application-prod.properties
+spring.profiles.active=prod
+# BlockHound will be disabled
+```
+
+> 💡 **Tip:** Run your test suite with BlockHound to catch all blocking violations before production!
+
 ### Contoh Testing
 ```java
 @Test
@@ -532,6 +703,15 @@ void testGetPostError() {
     StepVerifier.create(controller.getPost(999L))
         .expectError(PostNotFoundException.class)
         .verify();
+}
+
+@Test
+void testNoBlockingCalls() {
+    // BlockHound will catch any blocking operations
+    StepVerifier.create(service.getPost(1L))
+        .expectNextCount(1)
+        .verifyComplete();
+    // If blocking detected → BlockingOperationError thrown!
 }
 ```
 
@@ -572,3 +752,57 @@ public Flux<User> getUsers() {
 - **Error handling** → `onErrorReturn()` atau `retry()`
 
 Pilih operator berdasarkan use case dan selalu test error scenarios!
+
+---
+
+## 📚 How Reactive Fits in Hexagonal Architecture
+
+### **Reactive in Adapters:**
+```java
+// Secondary Adapter (API Client)
+@Component
+public class PostApiClient implements LoadPostPort {
+    
+    @Override
+    public Mono<Post> loadById(Long id) {
+        return webClient.get()
+            .uri("/posts/{id}", id)
+            .retrieve()
+            .bodyToMono(PostDto.class)  // ✅ Reactive here
+            .map(this::toDomain);
+    }
+}
+```
+
+### **Reactive in Services:**
+```java
+// Service (Application Layer)
+@Service
+public class PostService implements GetPostUseCase {
+    
+    @Override
+    public Mono<Post> getPost(Long id) {
+        return loadPostPort.loadById(id)  // ✅ Reactive chain
+            .filter(Post::isValid)
+            .switchIfEmpty(Mono.error(...));
+    }
+}
+```
+
+### **Reactive in Controllers:**
+```java
+// Primary Adapter (HTTP Controller)
+@RestController
+public class PostController {
+    
+    @GetMapping("/{id}")
+    public Mono<PostResponse> getPost(@PathVariable Long id) {
+        return getPostUseCase.getPost(id)  // ✅ Non-blocking
+            .map(PostResponse::from);
+    }
+}
+```
+
+> 💡 **See:**
+> - [PURE_HEXAGONAL_ARCHITECTURE.md](PURE_HEXAGONAL_ARCHITECTURE.md) - Architecture overview
+> - [HEXAGONAL_MAPPING_GUIDE.md](HEXAGONAL_MAPPING_GUIDE.md) - Where mapping happens in reactive chains

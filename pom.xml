@@ -49,6 +49,12 @@
 			<artifactId>lombok</artifactId>
 			<scope>provided</scope>
 		</dependency>
+		<!-- BlockHound: Detect blocking calls in reactive code -->
+		<dependency>
+			<groupId>io.projectreactor.tools</groupId>
+			<artifactId>blockhound</artifactId>
+			<version>1.0.8.RELEASE</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -63,6 +69,10 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+					<!-- JVM flags for BlockHound on Java 13+ -->
+					<jvmArguments>
+						-XX:+AllowRedefinitionToAddDeleteMethods
+					</jvmArguments>
 				</configuration>
 			</plugin>
 			<plugin>

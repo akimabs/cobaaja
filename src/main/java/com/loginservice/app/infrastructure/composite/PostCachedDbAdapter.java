@@ -1,12 +1,16 @@
 package com.loginservice.app.infrastructure.composite;
 
+import com.loginservice.app.application.port.out.LoadPostPort;
 import com.loginservice.app.domain.entity.Post;
-import com.loginservice.app.domain.repository.PostRepository;
 import reactor.core.publisher.Mono;
 import java.util.List;
 
 /**
- * Composite Adapter: Redis → Database
+ * Composite Adapter: Redis → Database (Secondary Adapter)
+ * 
+ * Pure Hexagonal Architecture:
+ * - IMPLEMENTS Output Port (LoadPostPort)
+ * - Composite pattern: orchestrates multiple adapters
  * 
  * Simple flow:
  * 1. Cek Redis (cache) dulu
@@ -19,7 +23,7 @@ import java.util.List;
  */
 // @Component  // Uncomment kalau mau aktifkan
 // @Primary    // Ini yang akan dipake default
-public class PostCachedDbAdapter implements PostRepository {
+public class PostCachedDbAdapter implements LoadPostPort {
 
     // ========================================
     // STEP 1: Declare dependencies
@@ -41,11 +45,11 @@ public class PostCachedDbAdapter implements PostRepository {
     // }
 
     // ========================================
-    // STEP 2: Implement findById dengan Cache
+    // STEP 2: Implement loadById dengan Cache
     // ========================================
     
     @Override
-    public Mono<Post> findById(Long id) {
+    public Mono<Post> loadById(Long id) {
         
         // FLOW:
         // 1. Check Redis cache first
@@ -105,11 +109,11 @@ public class PostCachedDbAdapter implements PostRepository {
     }
 
     // ========================================
-    // STEP 3: Implement findAll
+    // STEP 3: Implement loadAll
     // ========================================
     
     @Override
-    public Mono<List<Post>> findAll() {
+    public Mono<List<Post>> loadAll() {
         
         // FLOW (similar to findById):
         // 1. Check Redis for "posts:all" key

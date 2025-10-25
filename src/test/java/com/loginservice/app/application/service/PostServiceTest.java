@@ -14,16 +14,24 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import com.loginservice.app.application.port.out.LoadPostPort;
 import com.loginservice.app.domain.entity.Post;
-import com.loginservice.app.domain.repository.PostRepository;
 
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+/**
+ * PostService Test
+ * 
+ * Pure Hexagonal Architecture:
+ * - Mocks LoadPostPort (Output Port)
+ * - Tests PostService (which implements Input Port)
+ * - No infrastructure knowledge needed!
+ */
 class PostServiceTest {
 
     @Mock
-    private PostRepository postRepository;
+    private LoadPostPort loadPostPort;
 
     @InjectMocks
     private PostService postService;
@@ -34,8 +42,8 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("Should return all posts when repository has data")
-    void getAllPosts_whenRepositoryHasData_shouldReturnAllPosts() {
+    @DisplayName("Should return all posts when port has data")
+    void getAllPosts_whenPortHasData_shouldReturnAllPosts() {
         // Given
         List<Post> mockPosts = Arrays.asList(
             new Post(1L, 1L, "Title 1", "Body 1"),
@@ -43,7 +51,7 @@ class PostServiceTest {
             new Post(2L, 3L, "Title 3", "Body 3")
         );
         
-        when(postRepository.findAll()).thenReturn(Mono.just(mockPosts));
+        when(loadPostPort.loadAll()).thenReturn(Mono.just(mockPosts));
 
         // When
         Mono<List<Post>> result = postService.getAllPosts();
@@ -59,15 +67,15 @@ class PostServiceTest {
             })
             .verifyComplete();
 
-        // Verify repository was called once
-        verify(postRepository, times(1)).findAll();
+        // Verify port was called once
+        verify(loadPostPort, times(1)).loadAll();
     }
 
     @Test
-    @DisplayName("Should return empty list when repository has no data")
-    void getAllPosts_whenRepositoryIsEmpty_shouldReturnEmptyList() {
+    @DisplayName("Should return empty list when port has no data")
+    void getAllPosts_whenPortIsEmpty_shouldReturnEmptyList() {
         // Given
-        when(postRepository.findAll()).thenReturn(Mono.just(Collections.emptyList()));
+        when(loadPostPort.loadAll()).thenReturn(Mono.just(Collections.emptyList()));
 
         // When
         Mono<List<Post>> result = postService.getAllPosts();
@@ -80,15 +88,15 @@ class PostServiceTest {
             })
             .verifyComplete();
 
-        verify(postRepository, times(1)).findAll();
+        verify(loadPostPort, times(1)).loadAll();
     }
 
     @Test
-    @DisplayName("Should propagate error when repository fails")
-    void getAllPosts_whenRepositoryFails_shouldPropagateError() {
+    @DisplayName("Should propagate error when port fails")
+    void getAllPosts_whenPortFails_shouldPropagateError() {
         // Given
         RuntimeException expectedException = new RuntimeException("Database connection failed");
-        when(postRepository.findAll()).thenReturn(Mono.error(expectedException));
+        when(loadPostPort.loadAll()).thenReturn(Mono.error(expectedException));
 
         // When
         Mono<List<Post>> result = postService.getAllPosts();
@@ -101,7 +109,7 @@ class PostServiceTest {
             )
             .verify();
 
-        verify(postRepository, times(1)).findAll();
+        verify(loadPostPort, times(1)).loadAll();
     }
 
     @Test
@@ -112,7 +120,7 @@ class PostServiceTest {
             new Post(1L, 1L, "Title", "Body")
         );
         
-        when(postRepository.findAll()).thenReturn(Mono.just(mockPosts));
+        when(loadPostPort.loadAll()).thenReturn(Mono.just(mockPosts));
 
         // When
         Mono<List<Post>> result = postService.getAllPosts();
@@ -140,7 +148,7 @@ class PostServiceTest {
             new Post(1L, 3L, "User 1 Another Post", "Body 3")
         );
         
-        when(postRepository.findAll()).thenReturn(Mono.just(mockPosts));
+        when(loadPostPort.loadAll()).thenReturn(Mono.just(mockPosts));
 
         // When
         Mono<List<Post>> result = postService.getAllPosts();

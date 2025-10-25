@@ -1,5 +1,7 @@
 # Composite Adapter Pattern Guide
 
+> 📖 **Prerequisites:** Read [PURE_HEXAGONAL_ARCHITECTURE.md](PURE_HEXAGONAL_ARCHITECTURE.md) first to understand ports & adapters.
+
 ## 🎯 **Problem**
 Butuh akses **Redis** (cache) dulu, baru **Minio** (storage) kalau cache miss.
 
@@ -16,8 +18,8 @@ public class PostController {
     
     @GetMapping("/posts/{id}")
     public Mono<Post> getPost(@PathVariable Long id) {
-        return redis.findById(id)              // ❌ Controller knows Redis
-            .switchIfEmpty(minio.findById(id)); // ❌ Controller knows Minio
+        return redis.loadById(id)              // ❌ Controller knows Redis
+            .switchIfEmpty(minio.loadById(id)); // ❌ Controller knows Minio
     }
 }
 ```
@@ -35,15 +37,15 @@ public class PostController {
 ### Architecture Flow:
 ```
 ┌─────────────────────┐
-│   PostController    │ ← Knows ONLY PostService
+│   PostController    │ ← Knows ONLY GetPostUseCase (Input Port)
 └──────────┬──────────┘
-           │
+           │ uses
 ┌──────────▼──────────┐
-│    PostService      │ ← Knows ONLY PostRepository (interface)
+│    PostService      │ ← Knows ONLY LoadPostPort (Output Port)
 └──────────┬──────────┘
            │ depends on
 ┌──────────▼──────────┐
-│  PostRepository     │ ← Interface (Port)
+│  LoadPostPort       │ ← Interface (Output Port)
 │    (interface)      │
 └──────────┬──────────┘
            │ implements
@@ -62,17 +64,17 @@ public class PostController {
 ### 1. Create Individual Adapters
 
 ```java
-// Redis Adapter
+// Redis Adapter (Secondary Adapter)
 @Component
 @Qualifier("redis")
-public class PostRedisAdapter implements PostRepository {
+public class PostRedisAdapter implements LoadPostPort {
     // Redis logic only
 }
 
-// Minio Adapter
+// Minio Adapter (Secondary Adapter)
 @Component
 @Qualifier("minio")
-public class PostMinioAdapter implements PostRepository {
+public class PostMinioAdapter implements LoadPostPort {
     // Minio logic only
 }
 ```
@@ -82,7 +84,7 @@ public class PostMinioAdapter implements PostRepository {
 ```java
 @Component
 @Primary  // ← This becomes the default
-public class PostCachedStorageAdapter implements PostRepository {
+public class PostCachedStorageAdapter implements LoadPostPort {
     
     private final PostRedisAdapter redis;
     private final PostMinioAdapter minio;
@@ -96,11 +98,11 @@ public class PostCachedStorageAdapter implements PostRepository {
     }
     
     @Override
-    public Mono<Post> findById(Long id) {
+    public Mono<Post> loadById(Long id) {
         // Cache-Aside Pattern
-        return redis.findById(id)
+        return redis.loadById(id)
             .switchIfEmpty(
-                minio.findById(id)
+                minio.loadById(id)
                     .flatMap(post -> 
                         redis.save(post).thenReturn(post)
                     )
@@ -109,19 +111,21 @@ public class PostCachedStorageAdapter implements PostRepository {
 }
 ```
 
+> 💡 **See:** [DI_INJECTION_GUIDE.md](DI_INJECTION_GUIDE.md) for detailed Spring injection explanation.
+
 ### 3. Controller & Service Stay Clean
 
 ```java
 // Controller - unchanged!
 @RestController
 public class PostController {
-    private final PostService service;  // Only knows service
+    private final GetPostUseCase getPostUseCase;  // ✅ Only knows Input Port
 }
 
 // Service - unchanged!
 @Service
-public class PostService {
-    private final PostRepository repository;  // Only knows interface
+public class PostService implements GetPostUseCase {
+    private final LoadPostPort loadPostPort;  // ✅ Only knows Output Port
 }
 ```
 
@@ -131,10 +135,10 @@ public class PostService {
 
 ### 1. **Cache-Aside** (Lazy Loading)
 ```java
-public Mono<Post> findById(Long id) {
-    return cache.get(id)
+public Mono<Post> loadById(Long id) {
+    return cache.loadById(id)
         .switchIfEmpty(
-            storage.get(id)
+            storage.loadById(id)
                 .flatMap(post -> cache.save(post).thenReturn(post))
         );
 }
@@ -182,17 +186,17 @@ public Mono<Void> save(Post post) {
 ```java
 @Component
 @Primary
-public class PostReadThroughAdapter implements PostRepository {
+public class PostReadThroughAdapter implements LoadPostPort {
     
-    public Mono<Post> findById(Long id) {
-        return cache.get(id)
+    public Mono<Post> loadById(Long id) {
+        return cache.loadById(id)
             .switchIfEmpty(
                 loadFromStorageAndCache(id)
             );
     }
     
     private Mono<Post> loadFromStorageAndCache(Long id) {
-        return storage.findById(id)
+        return storage.loadById(id)
             .flatMap(post -> 
                 cache.save(post).thenReturn(post)
             );
@@ -209,17 +213,17 @@ public class PostReadThroughAdapter implements PostRepository {
 ```java
 @Component
 @Primary
-public class ProductCatalogAdapter implements ProductRepository {
+public class ProductCatalogAdapter implements LoadProductPort {
     
     private final RedisAdapter cache;       // Fast, short TTL
     private final PostgresAdapter database; // Persistent
     private final S3Adapter images;         // Large files
     
     @Override
-    public Mono<Product> findById(Long id) {
-        return cache.findById(id)
+    public Mono<Product> loadById(Long id) {
+        return cache.loadById(id)
             .switchIfEmpty(
-                database.findById(id)
+                database.loadById(id)
                     .flatMap(product -> 
                         // Load image URL from S3
                         images.getImageUrl(product.getImageKey())
@@ -251,23 +255,23 @@ Handle failures gracefully:
 ```java
 @Component
 @Primary
-public class ResilientPostAdapter implements PostRepository {
+public class ResilientPostAdapter implements LoadPostPort {
     
     private final PostRedisAdapter cache;
     private final PostMinioAdapter storage;
     private final PostApiClient fallback;  // External API
     
-    public Mono<Post> findById(Long id) {
-        return cache.findById(id)
+    public Mono<Post> loadById(Long id) {
+        return cache.loadById(id)
             .onErrorResume(e -> {
                 // Redis down? Try storage
-                return storage.findById(id);
+                return storage.loadById(id);
             })
             .switchIfEmpty(
-                storage.findById(id)
+                storage.loadById(id)
                     .onErrorResume(e -> {
                         // Storage down? Try external API
-                        return fallback.findById(id);
+                        return fallback.loadById(id);
                     })
             );
     }
@@ -293,21 +297,21 @@ public class AdapterConfig {
     
     @Bean
     @Qualifier("redis")
-    public PostRepository redisAdapter() {
+    public LoadPostPort redisAdapter() {
         return new PostRedisAdapter();
     }
     
     @Bean
     @Qualifier("minio")
-    public PostRepository minioAdapter() {
+    public LoadPostPort minioAdapter() {
         return new PostMinioAdapter();
     }
     
     @Bean
     @Primary
-    public PostRepository compositeAdapter(
-        @Qualifier("redis") PostRepository redis,
-        @Qualifier("minio") PostRepository minio
+    public LoadPostPort compositeAdapter(
+        @Qualifier("redis") LoadPostPort redis,
+        @Qualifier("minio") LoadPostPort minio
     ) {
         return new PostCachedStorageAdapter(redis, minio);
     }
@@ -320,10 +324,18 @@ public class AdapterConfig {
 
 | Layer | Responsibility | Knows About |
 |-------|---------------|-------------|
-| Controller | HTTP handling | Service only |
-| Service | Business logic | Repository interface |
+| Controller | HTTP handling | Input Port (GetPostUseCase) |
+| Service | Business logic | Output Port (LoadPostPort) |
 | Composite Adapter | Orchestration | Other adapters |
 | Individual Adapter | One technology | Redis/Minio/DB |
 
 **The magic:** Controller & Service never change when you add/remove adapters! 🪄
+
+---
+
+## 📚 Related Guides
+
+- **[PURE_HEXAGONAL_ARCHITECTURE.md](PURE_HEXAGONAL_ARCHITECTURE.md)** - Main architecture guide
+- **[DI_INJECTION_GUIDE.md](DI_INJECTION_GUIDE.md)** - How Spring wires composite adapters
+- **[HEXAGONAL_MAPPING_GUIDE.md](HEXAGONAL_MAPPING_GUIDE.md)** - Where to do mapping
 
